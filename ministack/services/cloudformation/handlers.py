@@ -9,25 +9,40 @@ import logging
 
 from ministack.core.responses import get_account_id, new_uuid, now_iso
 
-from .engine import (
-    _evaluate_conditions, _parse_template, _resolve_parameters,
-    _resolve_refs, _NO_VALUE,
-)
-from .stacks import _add_event, _deploy_stack_async, _delete_stack_async, _diff_resources
-from .provisioners import _provision_resource, REGION
-from .helpers import _xml, _error, _p, _esc, _extract_members, _extract_stack_status_filters, _resolve_template, CFN_NS
 from .changesets import (
-    _create_change_set, _describe_change_set, _execute_change_set,
-    _delete_change_set, _list_change_sets,
+    _create_change_set,
+    _delete_change_set,
+    _describe_change_set,
+    _execute_change_set,
+    _list_change_sets,
 )
+from .custom_syntax import warn_or_reject_custom_syntax
+from .engine import (
+    _NO_VALUE,
+    _evaluate_conditions,
+    _parse_template,
+    _resolve_parameters,
+    _resolve_refs,
+)
+from .helpers import CFN_NS, _error, _esc, _extract_members, _extract_stack_status_filters, _p, _resolve_template, _xml
+from .provisioners import REGION, _provision_resource
+from .stacks import _add_event, _delete_stack_async, _deploy_stack_async, _diff_resources
 
 logger = logging.getLogger("cloudformation")
+
+
+def _custom_syntax_gate(template: dict):
+    """Return a ValidationError response if strict mode rejects macro syntax."""
+    msg = warn_or_reject_custom_syntax(template)
+    if msg:
+        return _error("ValidationError", msg)
+    return None
 
 
 # --- CreateStack ---
 
 def _create_stack(params):
-    from ministack.services.cloudformation import _stacks, _stack_events, _exports, _change_sets
+    from ministack.services.cloudformation import _change_sets, _exports, _stack_events, _stacks
     stack_name = _p(params, "StackName")
     if not stack_name:
         return _error("ValidationError", "StackName is required")
@@ -50,6 +65,9 @@ def _create_stack(params):
         template = _parse_template(template_body)
     except Exception as e:
         return _error("ValidationError", f"Template format error: {e}")
+    gate = _custom_syntax_gate(template)
+    if gate:
+        return gate
     provided_params = _extract_members(params, "Parameters")
     tags = _extract_members(params, "Tags")
     disable_rollback = _p(params, "DisableRollback", "false").lower() == "true"
@@ -220,7 +238,7 @@ def _list_stacks(params):
 # --- DescribeStackEvents ---
 
 def _describe_stack_events(params):
-    from ministack.services.cloudformation import _stacks, _stack_events
+    from ministack.services.cloudformation import _stack_events, _stacks
     stack_name = _p(params, "StackName")
     if not stack_name:
         return _error("ValidationError", "StackName is required")
@@ -460,6 +478,9 @@ def _update_stack(params):
         template = _parse_template(template_body)
     except Exception as e:
         return _error("ValidationError", f"Template format error: {e}")
+    gate = _custom_syntax_gate(template)
+    if gate:
+        return gate
     provided_params = _extract_members(params, "Parameters")
     tags = _extract_members(params, "Tags")
     disable_rollback = _p(params, "DisableRollback", "false").lower() == "true"
@@ -515,6 +536,9 @@ def _validate_template(params):
         template = _parse_template(template_body)
     except Exception as e:
         return _error("ValidationError", f"Template format error: {e}")
+    gate = _custom_syntax_gate(template)
+    if gate:
+        return gate
     if "Resources" not in template:
         return _error("ValidationError",
                       "Template format error: At least one Resources member must be defined.")
@@ -584,6 +608,9 @@ def _get_template_summary(params):
         template = _parse_template(template_body)
     except Exception as e:
         return _error("ValidationError", f"Template format error: {e}")
+    gate = _custom_syntax_gate(template)
+    if gate:
+        return gate
     description = template.get("Description", "")
     resources = template.get("Resources", {})
     param_defs = template.get("Parameters", {})
