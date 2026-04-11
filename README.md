@@ -351,6 +351,7 @@ subnet = ec2.create_subnet(
 | **Conditions** | Fn::Equals, Fn::And, Fn::Or, Fn::Not — conditional resource creation |
 | **Rollback** | Configurable via `DisableRollback` — on failure, previously created resources are cleaned up in reverse dependency order |
 | **Async Status** | Stacks deploy asynchronously (`CREATE_IN_PROGRESS` → `CREATE_COMPLETE`) — poll with DescribeStacks |
+| **Third-party macros** | Serverless-style `${file(...)}`, `${self:...}`, and custom pseudo-types such as `MasonFn::...` are **not** expanded — they stay literal strings unless you pre-compile (e.g. `serverless package`, `sam package`, CDK `synth`). Set env **`MINISTACK_CFN_FAIL_ON_CUSTOM_SYNTAX=1`** to reject templates that still contain these patterns at **ValidateTemplate**, **CreateStack**, **UpdateStack**, **CreateChangeSet**, and **GetTemplateSummary** (otherwise MiniStack only logs a warning). |
 
 **Supported Resource Types:**
 
